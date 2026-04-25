@@ -1,19 +1,19 @@
 defaults:
   - dataset: active_matter
-  - model: conv_small
+  - model: conv_vit_tiny
   - ft: linear
 
 dataset:
   num_frames: 16
 
 model:
-  objective: "jepa"
-  dims: [16, 32, 64, 128, 128]
-  num_res_blocks: [3, 3, 3, 9, 3]
+  objective: "vit_tiny_jepa"
+  dims: [24, 48, 96, 192] 
+  num_res_blocks: [3, 3, 9, 3]
 
 train:
   num_epochs: 30
-  batch_size: 6 # per-device
+  batch_size: 1 # per-device
   report_every: 100
   save_every: 2
   include_labels: false
@@ -39,7 +39,7 @@ ft:
   lr: 1e-3
   weight_decay: 0.01
   noise_std: 1.0
-  run_name: "activematter-jepa-FT-noise-std-1.0"
+  run_name: "activematter-vit-tiny-jepa-FT-noise-std-1.0"
   distributed: false
 
 out_path: "./checkpoints"

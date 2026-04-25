@@ -6,7 +6,7 @@ from functools import partial
 from einops import rearrange
 from collections import defaultdict
 
-from physics_jepa.utils.model_utils import ConvEncoder, ConvPredictor, ConvDecoder
+from physics_jepa.utils.model_utils import ConvEncoder, ConvPredictor, ConvDecoder, ConvEncoderViTTiny, ConvPredictorViTTiny
 
 def get_model_and_loss_cnn(dims, num_res_blocks, num_frames, in_chans=2, sim_coeff=25, std_coeff=25, cov_coeff=1):
     encoder = ConvEncoder(
@@ -21,6 +21,21 @@ def get_model_and_loss_cnn(dims, num_res_blocks, num_frames, in_chans=2, sim_coe
                 cov_coeff=cov_coeff,
                 n_chunks=5)
     predictor = ConvPredictor(dims=list(reversed(encoder.dims))[:2])
+    
+    return encoder, predictor, loss
+
+def get_model_and_loss_vit_tiny(dims, num_res_blocks, num_frames, in_chans=2, sim_coeff=25, std_coeff=25, cov_coeff=1):
+    encoder = ConvEncoderViTTiny(
+        dims=dims,
+        in_chans=in_chans,
+        num_res_blocks=num_res_blocks,
+    )
+    loss = partial(vicreg_loss_3d,
+                sim_coeff=sim_coeff,
+                std_coeff=std_coeff,
+                cov_coeff=cov_coeff,
+                n_chunks=5)
+    predictor = ConvPredictorViTTiny(dims=list(reversed(encoder.dims))[:2])
     
     return encoder, predictor, loss
 

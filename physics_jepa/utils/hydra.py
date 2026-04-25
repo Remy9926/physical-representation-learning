@@ -20,7 +20,7 @@ def compose(
     Returns:
         A configuration.
     """
-
+    
     assert Path(config_file).is_file(), f"{config_file} does not exists."
 
     assert os.path.isfile(config_file), f"{config_file} does not exists."

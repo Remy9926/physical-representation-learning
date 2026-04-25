@@ -99,7 +99,6 @@ class WellDatasetForJEPA(Dataset):
         
         F = self.num_frames
         paths = sorted(list(self.data_dir.rglob("*.h5")) + list(self.data_dir.rglob("*.hdf5")))
-        
         for path in paths:
             with h5py.File(path, 'r') as f:
                 example_scalar_field = f['t0_fields'][list(f['t0_fields'].keys())[0]]
@@ -632,6 +631,7 @@ def get_dataset(
     if well_data_dir is None:
         raise ValueError("THE_WELL_DATA_DIR environment variable is not set. "
                          "Set it to the path of The Well datasets directory.")
+
     return WellDatasetForJEPA(
         data_dir=Path(well_data_dir) / dataset_name,
         num_frames=num_frames,

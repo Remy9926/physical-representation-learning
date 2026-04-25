@@ -16,7 +16,7 @@ import datetime
 import gc
 
 from .data import get_train_dataloader_from_cfg, get_val_dataloader_from_cfg, get_dataset_metadata
-from .model import get_model_and_loss_cnn, get_autoencoder
+from .model import get_model_and_loss_cnn, get_autoencoder, get_model_and_loss_vit_tiny
 from .utils.model_utils import CosineLRScheduler
 from .utils.data_utils import mae
 from .utils.hydra import compose
@@ -31,9 +31,9 @@ class Trainer:
         self.train_cfg = cfg[stage]
 
         if self.cfg.model.get("vit_equivalency", None) == 'tiny':
-            assert self.cfg.model.dims[-1] == 384, "dims must be [48, 96, 192, 384] for tiny vit equivalency"
+            #assert self.cfg.model.dims[-1] == 384, "dims must be [48, 96, 192, 384] for tiny vit equivalency"
             assert self.cfg.dataset.get('resolution', None) == 224, "resolution must be 224 for tiny vit equivalency"
-            assert self.cfg.dataset.get('num_frames', None) == 4, "num_frames must be 4 for current implementation of tiny vit equivalency"
+            #assert self.cfg.dataset.get('num_frames', None) == 4, "num_frames must be 4 for current implementation of tiny vit equivalency"
 
         if os.environ.get("LOCAL_RANK", None) is not None:
             ddp_setup()
@@ -141,7 +141,6 @@ class Trainer:
 
             for i, batch in enumerate(self.train_loader):
                 i += self.train_cfg.get("start_step", 0) # add start step to the global step count
-
                 pred, loss_dict = self.step(batch, model_components, loss_fn, self.rank, log=(i == 0 and epoch % 10 == 0))
                 if i == 0:
                     distprint(f"train batch {i} pred: {pred[:5]}", local_rank=self.rank)
@@ -235,7 +234,7 @@ class Trainer:
                 tgt = F.pad(tgt, (0, 0, 0, 0, 0, 4 - tgt.shape[2]))
             batch['target'] = tgt
             del tgt
-
+        
         pred, loss_dict = self.pred_fn(batch, model_components, loss_fn)
 
         if log:
@@ -281,6 +280,34 @@ class Trainer:
     def get_model_components(self):
         if self.cfg.model.objective == 'jepa':
             encoder, predictor, loss_fn = get_model_and_loss_cnn(
+                self.cfg.model.dims,
+                self.cfg.model.num_res_blocks,
+                self.cfg.dataset.num_frames,
+                in_chans=self.cfg.dataset.num_chans if 'fields' not in self.train_cfg else len(self.train_cfg.fields),
+                sim_coeff=self.train_cfg.sim_coeff,
+                std_coeff=self.train_cfg.std_coeff,
+                cov_coeff=self.train_cfg.cov_coeff,
+            )
+
+            if 'encoder_path' in self.train_cfg and self.train_cfg.encoder_path is not None:
+                distprint(f"loading encoder from {self.train_cfg.encoder_path}", local_rank=self.rank)
+                state_dict = torch.load(self.train_cfg.encoder_path)
+                state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+                encoder.load_state_dict(state_dict)
+            if 'predictor_path' in self.train_cfg and self.train_cfg.predictor_path is not None:
+                distprint(f"loading predictor from {self.train_cfg.predictor_path}", local_rank=self.rank)
+                state_dict = torch.load(self.train_cfg.predictor_path)
+                state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+                predictor.load_state_dict(state_dict)
+
+            distprint(f"num encoder parameters: {sum(p.numel() for p in encoder.parameters())}", local_rank=self.rank)
+            distprint(f"num predictor parameters: {sum(p.numel() for p in predictor.parameters())}", local_rank=self.rank)
+            distprint(summarize_convs(encoder), local_rank=self.rank)
+
+            model_components = [encoder, predictor]
+
+        elif self.cfg.model.objective == 'vit_tiny_jepa':
+            encoder, predictor, loss_fn = get_model_and_loss_vit_tiny(
                 self.cfg.model.dims,
                 self.cfg.model.num_res_blocks,
                 self.cfg.dataset.num_frames,
