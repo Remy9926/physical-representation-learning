@@ -23,6 +23,22 @@ class JepaTrainer(Trainer):
 
         return pred, loss_dict
 
+class JepaViTTrainer(Trainer):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+
+    def pred_fn(self, batch, model_components, loss_fn):
+        encoder, predictor = model_components
+        ctx_embed = encoder(batch['context'])
+        tgt_embed = encoder(batch['target'])
+        pred = predictor(ctx_embed)
+        
+        # Compute loss on projected embeddings
+        loss_dict = loss_fn(ctx_embed, pred, tgt_embed)
+
+        return pred, loss_dict
+    
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=str, default=f"{Path(__file__).parent.parent}/configs/train_grayscott.yml")

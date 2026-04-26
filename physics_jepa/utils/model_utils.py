@@ -259,6 +259,146 @@ class ConvEncoderViTTiny(nn.Module):
         x = x.permute(0, 2, 1, 3, 4).contiguous()  # (B, C, T, H, W)
         return x
 
+class VisionTransformer(nn.Module):
+    def __init__(self,
+                 in_channels=11,
+                 out_channels=768,
+                 n_layers=6,
+                 num_heads=8,
+                 patch_size=(4, 16, 16),
+                 seq_len=784,
+                 dropout=0.0):
+        super().__init__()
+        self.embed_dim = out_channels
+        self.seq_len = seq_len
+        self.n_layers = n_layers
+        self.dropout = dropout
+        self.pos_embeddings = nn.Parameter(torch.zeros((self.seq_len, self.embed_dim)))
+        torch.nn.init.trunc_normal_(self.pos_embeddings)
+        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=patch_size, stride=patch_size)
+        self.attention = nn.ModuleList()
+        self.layer_norm_1 = nn.ModuleList()
+        self.layer_norm_2 = nn.ModuleList()
+        self.mlp = nn.ModuleList()
+        self.dropout_layer = nn.Dropout(self.dropout)
+
+        for i in range(n_layers):
+            self.attention.append(nn.MultiheadAttention(self.embed_dim, num_heads, batch_first=True))
+            self.layer_norm_1.append(LayerNorm(self.embed_dim))
+            self.layer_norm_2.append(LayerNorm(self.embed_dim))
+            self.mlp.append(
+                nn.Sequential(
+                    LayerNorm(self.embed_dim),
+                    nn.Linear(self.embed_dim, self.embed_dim*4),
+                    nn.GELU(),
+                    nn.Dropout(self.dropout),
+                    nn.Linear(self.embed_dim*4, self.embed_dim),
+                    nn.Dropout(self.dropout)
+                    )
+                )
+
+    def forward(self, x):
+        patches = self.conv(x)
+        patches = patches.flatten(2)
+        patches = patches.permute((0, 2, 1))
+        patches = patches + self.pos_embeddings
+        x = patches
+        
+        for i in range(self.n_layers):
+            res = x
+            x = self.layer_norm_1[i](x)
+            x, _ = self.attention[i](x, x, x, need_weights=False)
+            x = self.dropout_layer(x) + res
+            res = x
+            x = self.layer_norm_2[i](x)
+            x = self.mlp[i](x)
+            x = self.dropout_layer(x) + res
+        
+        return x
+
+class VisionTransformerPredictor(nn.Module):
+    def __init__(self,
+                 embed_dim=768,
+                 seq_len=784,
+                 n_layers=4,
+                 n_heads=8,
+                 dropout=0.0):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.seq_len = seq_len
+        self.n_layers = n_layers
+        self.n_heads = n_heads
+        self.dropout=dropout
+        self.pos_embeddings = torch.zeros((self.seq_len+1, self.embed_dim))
+        nn.init.trunc_normal_(self.pos_embeddings)
+
+        self.cls_token = torch.zeros((1, 1, self.embed_dim))
+        nn.init.trunc_normal_(self.cls_token)
+
+        self.layer_norm_1 = nn.ModuleList()
+        self.layer_norm_2 = nn.ModuleList()
+        self.attention = nn.ModuleList()
+        self.mlp = nn.ModuleList()
+        self.dropout_layer = nn.Dropout(self.dropout)
+
+        for _ in range(n_layers):
+            self.layer_norm_1.append(LayerNorm(self.embed_dim))
+            self.layer_norm_2.append(LayerNorm(self.embed_dim))
+            self.attention.append(nn.MultiheadAttention(self.embed_dim, self.n_heads, batch_first=True))
+            self.mlp.append(
+                nn.Sequential(
+                    nn.Linear(self.embed_dim, self.embed_dim*4),
+                    nn.GELU(),
+                    nn.Linear(self.embed_dim*4, self.embed_dim)
+                ))
+    
+    def forward(self, x):
+        B = x.size(0)
+        expanded_cls = self.cls_token.expand((B, -1, -1))
+        x = torch.concat((expanded_cls, x), dim=1)
+        x = x + self.pos_embeddings
+
+        for i in range(self.n_layers):
+            res = x
+            x = self.layer_norm_1[i](x)
+            x, _ = self.attention[i](x, x, x, need_weights=False)
+            x = self.dropout_layer(x) + res
+            res = x
+            x = self.layer_norm_2[i](x)
+            x = self.mlp[i](x)
+            x = self.dropout_layer(x) + res
+        
+        return x[:,0,:]
+
+
+class SIGReg(torch.nn.Module):
+    """Sketch Isotropic Gaussian Regularizer (single-GPU!)"""
+
+    def __init__(self, knots=17, num_proj=1024):
+        super().__init__()
+        self.num_proj = num_proj
+        t = torch.linspace(0, 3, knots, dtype=torch.float32)
+        dt = 3 / (knots - 1)
+        weights = torch.full((knots,), 2 * dt, dtype=torch.float32)
+        weights[[0, -1]] = dt
+        window = torch.exp(-t.square() / 2.0)
+        self.register_buffer("t", t)
+        self.register_buffer("phi", window)
+        self.register_buffer("weights", weights * window)
+
+    def forward(self, proj):
+        """
+        proj: (T, B, D)
+        """
+        # sample random projections
+        A = torch.randn(proj.size(-1), self.num_proj, device=proj.device)
+        A = A.div_(A.norm(p=2, dim=0))
+        # compute the epps-pulley statistic
+        x_t = (proj @ A).unsqueeze(-1) * self.t
+        err = (x_t.cos().mean(-3) - self.phi).square() + x_t.sin().mean(-3).square()
+        statistic = (err @ self.weights) * proj.size(-2)
+        return statistic.mean() # average over projections and time
+
 class ConvPredictorViTTiny(nn.Module):
     def __init__(self, dims):
         super().__init__()

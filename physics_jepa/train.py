@@ -17,7 +17,7 @@ import gc
 
 from .data import get_train_dataloader_from_cfg, get_val_dataloader_from_cfg, get_dataset_metadata
 from .model import get_model_and_loss_cnn, get_autoencoder, get_model_and_loss_vit_tiny
-from .utils.model_utils import CosineLRScheduler
+from .utils.model_utils import CosineLRScheduler, SIGReg
 from .utils.data_utils import mae
 from .utils.hydra import compose
 from .utils.misc import distprint
@@ -309,12 +309,7 @@ class Trainer:
         elif self.cfg.model.objective == 'vit_tiny_jepa':
             encoder, predictor, loss_fn = get_model_and_loss_vit_tiny(
                 self.cfg.model.dims,
-                self.cfg.model.num_res_blocks,
-                self.cfg.dataset.num_frames,
-                in_chans=self.cfg.dataset.num_chans if 'fields' not in self.train_cfg else len(self.train_cfg.fields),
-                sim_coeff=self.train_cfg.sim_coeff,
-                std_coeff=self.train_cfg.std_coeff,
-                cov_coeff=self.train_cfg.cov_coeff,
+                SIGReg(),
             )
 
             if 'encoder_path' in self.train_cfg and self.train_cfg.encoder_path is not None:
