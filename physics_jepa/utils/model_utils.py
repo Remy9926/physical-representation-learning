@@ -262,17 +262,19 @@ class ConvEncoderViTTiny(nn.Module):
 class VisionTransformer(nn.Module):
     def __init__(self,
                  in_channels=11,
-                 out_channels=768,
-                 n_layers=6,
-                 num_heads=8,
+                 out_channels=192,
+                 n_layers=12,
+                 num_heads=3,
                  patch_size=(4, 16, 16),
                  seq_len=784,
-                 dropout=0.0):
+                 dropout=0.0,
+                 scale_factor=4):
         super().__init__()
         self.embed_dim = out_channels
         self.seq_len = seq_len
         self.n_layers = n_layers
         self.dropout = dropout
+        self.scale_factor = scale_factor
         self.pos_embeddings = nn.Parameter(torch.zeros((self.seq_len, self.embed_dim)))
         torch.nn.init.trunc_normal_(self.pos_embeddings)
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=patch_size, stride=patch_size)
@@ -289,10 +291,10 @@ class VisionTransformer(nn.Module):
             self.mlp.append(
                 nn.Sequential(
                     LayerNorm(self.embed_dim),
-                    nn.Linear(self.embed_dim, self.embed_dim*4),
+                    nn.Linear(self.embed_dim, self.embed_dim*self.scale_factor),
                     nn.GELU(),
                     nn.Dropout(self.dropout),
-                    nn.Linear(self.embed_dim*4, self.embed_dim),
+                    nn.Linear(self.embed_dim*self.scale_factor, self.embed_dim),
                     nn.Dropout(self.dropout)
                     )
                 )
@@ -318,22 +320,27 @@ class VisionTransformer(nn.Module):
 
 class VisionTransformerPredictor(nn.Module):
     def __init__(self,
-                 embed_dim=768,
+                 device,
+                 scale_factor=4,
+                 embed_dim=192,
                  seq_len=784,
-                 n_layers=4,
-                 n_heads=8,
-                 dropout=0.0):
+                 n_layers=6,
+                 n_heads=16,
+                 dropout=0.1,):
         super().__init__()
         self.embed_dim = embed_dim
         self.seq_len = seq_len
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.dropout=dropout
-        self.pos_embeddings = torch.zeros((self.seq_len+1, self.embed_dim))
+        self.device = device
+        self.scale_factor = scale_factor
+        # self.pos_embeddings = torch.zeros((self.seq_len+1, self.embed_dim))
+        self.pos_embeddings = torch.zeros((self.seq_len, self.embed_dim))
         nn.init.trunc_normal_(self.pos_embeddings)
 
-        self.cls_token = torch.zeros((1, 1, self.embed_dim))
-        nn.init.trunc_normal_(self.cls_token)
+        # self.cls_token = torch.zeros((1, 1, self.embed_dim))
+        # nn.init.trunc_normal_(self.cls_token)
 
         self.layer_norm_1 = nn.ModuleList()
         self.layer_norm_2 = nn.ModuleList()
@@ -347,16 +354,16 @@ class VisionTransformerPredictor(nn.Module):
             self.attention.append(nn.MultiheadAttention(self.embed_dim, self.n_heads, batch_first=True))
             self.mlp.append(
                 nn.Sequential(
-                    nn.Linear(self.embed_dim, self.embed_dim*4),
+                    nn.Linear(self.embed_dim, self.embed_dim*self.scale_factor),
                     nn.GELU(),
-                    nn.Linear(self.embed_dim*4, self.embed_dim)
+                    nn.Linear(self.embed_dim*self.scale_factor, self.embed_dim)
                 ))
     
     def forward(self, x):
         B = x.size(0)
-        expanded_cls = self.cls_token.expand((B, -1, -1))
-        x = torch.concat((expanded_cls, x), dim=1)
-        x = x + self.pos_embeddings
+        # expanded_cls = self.cls_token.expand((B, -1, -1)).to(x.device)
+        # x = torch.concat((expanded_cls, x), dim=1)
+        x = x + self.pos_embeddings.to(x.device)
 
         for i in range(self.n_layers):
             res = x
@@ -367,9 +374,8 @@ class VisionTransformerPredictor(nn.Module):
             x = self.layer_norm_2[i](x)
             x = self.mlp[i](x)
             x = self.dropout_layer(x) + res
-        
-        return x[:,0,:]
 
+        return x
 
 class SIGReg(torch.nn.Module):
     """Sketch Isotropic Gaussian Regularizer (single-GPU!)"""

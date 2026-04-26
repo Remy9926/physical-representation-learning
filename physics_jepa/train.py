@@ -309,7 +309,7 @@ class Trainer:
         elif self.cfg.model.objective == 'vit_tiny_jepa':
             encoder, predictor, loss_fn = get_model_and_loss_vit_tiny(
                 self.cfg.model.dims,
-                SIGReg(),
+                SIGReg().to("cuda" if torch.cuda.is_available() else "cpu"),
             )
 
             if 'encoder_path' in self.train_cfg and self.train_cfg.encoder_path is not None:

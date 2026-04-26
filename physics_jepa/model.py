@@ -31,17 +31,17 @@ def get_model_and_loss_vit_tiny(dims, sigreg, lambd=1e-2, in_chans=11):
     loss = partial(sigreg_loss,
                    sigreg=sigreg,
                    lambd=lambd)
-    predictor = VisionTransformerPredictor(dims=list(reversed(encoder.dims))[:2])
+    predictor = VisionTransformerPredictor(next(encoder.parameters()).device)
     
     return encoder, predictor, loss
 
 def sigreg_loss(x, pred, y, sigreg, lambd):
     loss_dict = {}
-    sigreg_loss = sigreg(x.permute(1, 0, 2))
-    repr_loss = F.mse_loss(pred, y)
-    loss_dict["repr_loss"] = repr_loss
-    loss_dict["sigreg_loss"] = sigreg_loss*lambd
-    loss_dict["loss"] = repr_loss + sigreg_loss*lambd
+    loss_sigreg = sigreg(x.permute(1, 0, 2))
+    loss_repr = F.mse_loss(pred, y)
+    loss_dict["loss_repr"] = loss_repr
+    loss_dict["loss_sigreg"] = loss_sigreg*lambd
+    loss_dict["loss"] = loss_repr + loss_sigreg*lambd
 
     return loss_dict
 

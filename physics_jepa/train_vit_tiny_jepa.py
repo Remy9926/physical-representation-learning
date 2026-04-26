@@ -5,7 +5,7 @@ from omegaconf import OmegaConf
 from .train import Trainer
 from .utils.hydra import compose
 
-class JepaTrainer(Trainer):
+class JepaViTTrainer(Trainer):
     def __init__(self, cfg):
         super().__init__(cfg)
 
@@ -14,15 +14,12 @@ class JepaTrainer(Trainer):
         ctx_embed = encoder(batch['context'])
         tgt_embed = encoder(batch['target'])
         pred = predictor(ctx_embed)
-        
+
         # Compute loss on projected embeddings
-        if len(pred.shape) < 5:
-            loss_dict = loss_fn(pred.unsqueeze(2), tgt_embed.unsqueeze(2))
-        else:
-            loss_dict = loss_fn(pred, tgt_embed)
+        loss_dict = loss_fn(ctx_embed, pred, tgt_embed)
 
         return pred, loss_dict
-    
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -43,5 +40,5 @@ if __name__ == "__main__":
 
     print(OmegaConf.to_yaml(cfg, resolve=True))
 
-    trainer = JepaTrainer(cfg)
+    trainer = JepaViTTrainer(cfg)
     trainer.train()
