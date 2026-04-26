@@ -26,8 +26,7 @@ def get_model_and_loss_cnn(dims, num_res_blocks, num_frames, in_chans=2, sim_coe
 
 def get_model_and_loss_vit_tiny(dims, sigreg, lambd=1e-2, in_chans=11):
     encoder = VisionTransformer(
-        dims=dims,
-        in_chans=in_chans,
+        in_channels=in_chans,
     )
     loss = partial(sigreg_loss,
                    sigreg=sigreg,
