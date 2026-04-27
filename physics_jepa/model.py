@@ -24,7 +24,7 @@ def get_model_and_loss_cnn(dims, num_res_blocks, num_frames, in_chans=2, sim_coe
     
     return encoder, predictor, loss
 
-def get_model_and_loss_vit(sigreg, encoder_n_layers, encoder_n_heads, predictor_n_layers, predictor_n_heads, encoder_embed_dim=192, predictor_embed_dim=192, seq_len=784, lambd=1e-1, in_chans=11):
+def get_model_and_loss_vit(sigreg, encoder_n_layers=12, encoder_n_heads=3, predictor_n_layers=6, predictor_n_heads=16, encoder_embed_dim=192, predictor_embed_dim=192, seq_len=784, lambd=1e-1, in_chans=11):
     encoder = VisionTransformer(
         n_layers=encoder_n_layers,
         n_heads=encoder_n_heads,

@@ -309,10 +309,10 @@ class Trainer:
         elif self.cfg.model.objective == 'vit_jepa':
             encoder, predictor, loss_fn = get_model_and_loss_vit(
                 SIGReg().to("cuda" if torch.cuda.is_available() else "cpu"),
-                self.cfg.model.n_layers,
-                self.cfg.model.n_heads,
-                self.cfg.predictor.n_layers,
-                self.cfg.predictor.n_heads,
+                encoder_n_layers=self.cfg.model.n_layers,
+                encoder_n_heads=self.cfg.model.n_heads,
+                predictor_n_layers=self.cfg.predictor.n_layers,
+                predictor_n_heads=self.cfg.predictor.n_heads,
                 encoder_embed_dim=self.cfg.model.embed_dim,
                 predictor_embed_dim=self.cfg.predictor.embed_dim,
                 lambd=self.cfg.predictor.lambd,
