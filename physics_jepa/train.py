@@ -68,7 +68,7 @@ class Trainer:
             betas=(0.9, 0.95)
         )
 
-        run_name = f"{self.cfg.dataset.name}-{self.cfg.dataset.num_frames}frames-{self.cfg.model.name}-{self.cfg.model.objective}"
+        run_name = f"{self.cfg.dataset.name}-{self.cfg.dataset.num_frames}frames-{self.cfg.model.name}-{self.cfg.model.objective}-{self.cfg.train.num_epochs}epochs-{self.cfg.predictor.lambd}lambd"
         if self.train_cfg.get("run_name", None) is not None:
             run_name = f"{run_name}-{self.train_cfg.run_name}"
         if self.rank == 0 and not self.cfg.dry_run:
@@ -315,6 +315,7 @@ class Trainer:
                 self.cfg.predictor.n_heads,
                 encoder_embed_dim=self.cfg.model.embed_dim,
                 predictor_embed_dim=self.cfg.predictor.embed_dim,
+                lambd=self.cfg.predictor.lambd,
             )
 
             if 'encoder_path' in self.train_cfg and self.train_cfg.encoder_path is not None:
