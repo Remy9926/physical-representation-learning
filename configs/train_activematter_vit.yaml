@@ -45,6 +45,7 @@ ft:
   task: "regression"
   num_epochs: 10
   use_attentive_pooling: false
+  head_type: "linear"
   lr_scheduler: "cosine"
   lr_scheduler_warmup_epochs: 2
   min_lr: 0
