@@ -23,9 +23,9 @@ import re
 from sklearn.metrics import f1_score
 
 from .data import EmbeddingsDataset, get_dataset_metadata, get_train_dataloader, get_val_dataloader
-from .model import get_model_and_loss_cnn, get_autoencoder
+from .model import get_model_and_loss_cnn, get_autoencoder, get_model_and_loss_vit
 from .utils.data_utils import normalize_labels
-from .utils.model_utils import RegressionHead, RegressionMLP
+from .utils.model_utils import RegressionHead, RegressionMLP, SIGReg
 from .attentive_pooler import AttentiveClassifier
 from .utils.train_utils import accuracy
 from .train import Trainer
@@ -543,6 +543,133 @@ class JepaFinetuner(BaseFinetuner):
             if torch.isnan(enc_ctx).any():
                 raise ValueError(f"NaN values detected in encoded context. Shape: {enc_ctx.shape}, NaN count: {torch.isnan(enc_ctx).sum()}")
         return enc_ctx
+
+
+# JEPAViT Finetuner
+class JepaViTFinetuner(BaseFinetuner):
+    def load_model(self):
+        encoder, _, _ = get_model_and_loss_vit(
+            None,
+            encoder_n_layers=self.cfg.model.n_layers,
+            encoder_n_heads=self.cfg.model.n_heads,
+            predictor_n_layers=self.cfg.predictor.n_layers,
+            predictor_n_heads=self.cfg.predictor.n_heads,
+            encoder_embed_dim=self.cfg.model.embed_dim,
+            predictor_embed_dim=self.cfg.predictor.embed_dim,
+        )
+        if self.trained_model_path is not None:
+            print(f"loading state dict from {self.trained_model_path}", flush=True)
+            state_dict = torch.load(self.trained_model_path)
+            state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+            encoder.load_state_dict(state_dict)
+        else:
+            print(f"no pretrained model path provided, randomly initializing encoder", flush=True)
+        
+        encoder.eval()
+        return encoder
+
+    def create_head(self, metadata):
+        #TODO create KNN and Linear Head
+        embed_dim = self.cfg.model.dims[-1]
+
+        if self.cfg.ft.task == "regression":
+            if self.cfg.ft.head_type == "linear":
+                head = RegressionHead(
+                    in_dim=embed_dim,
+                    out_dim=len(metadata.constant_scalar_names),
+                    flatten_first=True
+                )
+            elif self.cfg.ft.head_type == "mlp":
+                head = RegressionMLP(
+                    in_dim=embed_dim,
+                    out_dim=len(metadata.constant_scalar_names),
+                    flatten_first=True,
+                    add_dropout=self.cfg.ft.get("add_dropout", False),
+                    dropout_rate=self.cfg.ft.get("dropout_rate", 0.2)
+                )
+            elif "classification" in self.cfg.ft.task:
+                head = RegressionHead(
+                    in_dim=embed_dim,
+                    out_dim=self.cfg.ft.num_classes,
+                    flatten_first=True,
+                    add_dropout=self.cfg.ft.get("add_dropout", False),
+                    dropout_rate=self.cfg.ft.get("dropout_rate", 0.8)
+                )
+        return head
+
+    def _model_inference(self, ctx, encoder):
+        #TODO need to modify inference for classification/where is this called?
+        with torch.no_grad():
+            enc_ctx = encoder(ctx)
+            if self.cfg.ft.get("use_attentive_pooling", False):
+                # reshape to (batch_size, num_tokens, embed_dim)
+                enc_ctx = rearrange(enc_ctx, 'b c h w -> b (h w) c')
+            # Check for NaN values in the encoded context
+            if torch.isnan(enc_ctx).any():
+                raise ValueError(f"NaN values detected in encoded context. Shape: {enc_ctx.shape}, NaN count: {torch.isnan(enc_ctx).sum()}")
+        return enc_ctx
+    
+    def train(self):
+        #TODO need to modify training loop for finetuning the head?
+        run_name = self.cfg.ft.get("run_name", f"{self.cfg.dataset.name}-{self.cfg.dataset.num_frames}frames-{self.cfg.model.objective + '-FT' if not self.cfg.ft.get('not_from_embeddings', False) else 'supervised'}-{self.cfg.ft.task}{f'-randominit' if self.trained_model_path is None else ''}-{self.train_cfg.num_epochs}epochs")
+        if self.rank == 0 and not self.cfg.dry_run:
+            wandb.init(project="physics-jepa",
+                name=run_name,
+                config=OmegaConf.to_container(self.cfg))
+        
+        if self.cfg.ft.get("not_from_embeddings", False):
+            encoder = self.get_encoder_and_raw_loaders()
+            model_components = [encoder]
+        else:
+            train_dataset, train_labels, val_dataset, val_labels = self.get_embeddings()
+            train_dataset = EmbeddingsDataset(train_dataset, train_labels)
+            val_dataset = EmbeddingsDataset(val_dataset, val_labels)
+            self.train_loader = torch.utils.data.DataLoader(
+                train_dataset,
+                batch_size=self.cfg.ft.batch_size,
+                shuffle=True,
+                num_workers=4,
+                prefetch_factor=2
+            )
+            self.val_loader = torch.utils.data.DataLoader(
+                val_dataset,
+                batch_size=self.cfg.ft.batch_size,
+                shuffle=False,
+                num_workers=4,
+                prefetch_factor=2
+            )
+            model_components = []
+            
+        metadata = get_dataset_metadata(self.cfg.dataset.name)
+        head = self.create_head(metadata)
+
+        model_components.append(head)
+        if self.world_size > 1:
+            model_components[-1] = DDP(model_components[-1].to(self.rank), device_ids=[self.rank])
+            if len(model_components) > 1:
+                model_components[0].to(self.rank) # encoder doesn't need DDP
+        else:
+            for m in model_components:
+                m.to(self.rank)
+
+        optimizer = torch.optim.AdamW(
+            [p for m in model_components for p in m.parameters()],
+            lr=self.cfg.ft.lr,
+            weight_decay=self.cfg.ft.get('weight_decay', 0.01)
+        )
+
+        loss_fn = self.loss_for_task[self.cfg.ft.task] if self.cfg.ft.task in self.loss_for_task else None
+        if loss_fn is None:
+            raise ValueError(f"loss function not found for task {self.cfg.ft.task}")
+
+        self.training_loop(model_components, loss_fn, optimizer, run_name)
+
+        # Clean up HDF5 file handles if they exist
+        self.cleanup_embedding_files()
+
+        if self.world_size > 1:
+            dist.destroy_process_group()
+
 
 
 # VideoMAE Finetuner

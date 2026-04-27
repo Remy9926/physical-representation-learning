@@ -43,15 +43,16 @@ train:
 
 ft:
   task: "regression"
-  use_attentive_pooling: true
+  num_epochs: 10
+  use_attentive_pooling: false
   lr_scheduler: "cosine"
   lr_scheduler_warmup_epochs: 2
   min_lr: 0
   lr: 1e-3
   weight_decay: 0.01
   noise_std: 1.0
-  run_name: "activematter-vit-jepa-FT-noise-std-1.0-epochs-10"
+  run_name: "activematter-vit-jepa-FT-noise-std-1.0"
   distributed: false
 
-out_path: "./checkpoints/vit-10-epochs"
+out_path: "./checkpoints/"
 cache_path: "./dataset_cache"

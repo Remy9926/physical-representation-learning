@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 from omegaconf import OmegaConf
 
-from .finetuner import JepaFinetuner, VideoMAEFinetuner
+from .finetuner import JepaFinetuner, VideoMAEFinetuner, JepaViTFinetuner
 from .utils.hydra import compose
 
 if __name__ == "__main__":
@@ -27,6 +27,8 @@ if __name__ == "__main__":
         finetuner = JepaFinetuner(cfg, trained_model_path=args.trained_model_path)
     elif cfg.model.objective == "videomae":
         finetuner = VideoMAEFinetuner(cfg, trained_model_path=args.trained_model_path)
+    elif cfg.model.objective == "vit_jepa":
+        finetuner = JepaViTFinetuner(cfg, trained_model_path=args.trained_model_path)
     else:
         raise ValueError(f"Unknown objective: {cfg.model.objective}")
 
