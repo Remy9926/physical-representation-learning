@@ -152,6 +152,8 @@ class BaseFinetuner(Trainer, ABC):
         if loss_fn is None:
             raise ValueError(f"loss function not found for task {self.cfg.ft.task}")
 
+        import ipdb
+        ipdb.set_trace()
         self.training_loop(model_components, loss_fn, optimizer, run_name)
 
         # Clean up HDF5 file handles if they exist
@@ -579,15 +581,8 @@ class JepaViTFinetuner(BaseFinetuner):
                     out_dim=len(metadata.constant_scalar_names),
                     flatten_first=True
                 )
-            elif self.cfg.ft.head_type == "mlp":
-                head = RegressionMLP(
-                    in_dim=embed_dim,
-                    out_dim=len(metadata.constant_scalar_names),
-                    flatten_first=True,
-                    add_dropout=self.cfg.ft.get("add_dropout", False),
-                    dropout_rate=self.cfg.ft.get("dropout_rate", 0.2)
-                )
-            elif "classification" in self.cfg.ft.task:
+            else:
+                #TODO implement knn here
                 head = RegressionHead(
                     in_dim=embed_dim,
                     out_dim=self.cfg.ft.num_classes,

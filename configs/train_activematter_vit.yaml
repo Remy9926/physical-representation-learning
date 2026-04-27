@@ -38,7 +38,7 @@ train:
   lr: 1e-3 # following 1e-3 * global_batch_size/256 rule
   weight_decay: 0.05
   noise_std: 1.0
-  run_name: "noise-std-1.0-epochs-10"
+  run_name: "noise-std-1.0"
   distributed: true
 
 ft:
