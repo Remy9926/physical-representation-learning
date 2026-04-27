@@ -1,19 +1,30 @@
 defaults:
   - dataset: active_matter
-  - model: conv_vit_tiny
+  - model: vit
   - ft: linear
 
 dataset:
   num_frames: 16
 
 model:
-  objective: "vit_tiny_jepa"
-  dims: [24, 48, 96, 192] 
+  objective: "vit_jepa"
+  embed_dim: 192
+  seq_len: 784
+  n_layers: 12
+  n_heads: 3
+  num_res_blocks: [3, 3, 9, 3]
+
+predictor:
+  objective: "vit_jepa"
+  embed_dim: 192
+  seq_len: 784
+  n_layers: 6
+  n_heads: 16
   num_res_blocks: [3, 3, 9, 3]
 
 train:
-  num_epochs: 30
-  batch_size: 1 # per-device
+  num_epochs: 10
+  batch_size: 8 # per-device
   report_every: 100
   save_every: 2
   include_labels: false
@@ -27,7 +38,7 @@ train:
   lr: 1e-3 # following 1e-3 * global_batch_size/256 rule
   weight_decay: 0.05
   noise_std: 1.0
-  run_name: "noise-std-1.0"
+  run_name: "noise-std-1.0-epochs-10"
   distributed: true
 
 ft:
@@ -39,8 +50,8 @@ ft:
   lr: 1e-3
   weight_decay: 0.01
   noise_std: 1.0
-  run_name: "activematter-vit-tiny-jepa-FT-noise-std-1.0"
+  run_name: "activematter-vit-jepa-FT-noise-std-1.0-epochs-10"
   distributed: false
 
-out_path: "./checkpoints"
+out_path: "./checkpoints/vit-10-epochs"
 cache_path: "./dataset_cache"

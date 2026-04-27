@@ -24,24 +24,35 @@ def get_model_and_loss_cnn(dims, num_res_blocks, num_frames, in_chans=2, sim_coe
     
     return encoder, predictor, loss
 
-def get_model_and_loss_vit_tiny(dims, sigreg, lambd=1e-2, in_chans=11):
+def get_model_and_loss_vit(sigreg, encoder_n_layers, encoder_n_heads, predictor_n_layers, predictor_n_heads, encoder_embed_dim=192, predictor_embed_dim=192, seq_len=784, lambd=1e-1, in_chans=11):
     encoder = VisionTransformer(
-        in_channels=in_chans,
+        n_layers=encoder_n_layers,
+        n_heads=encoder_n_heads,
+        in_chans=in_chans,
+        embed_dim=encoder_embed_dim,
+        seq_len=seq_len,
     )
     loss = partial(sigreg_loss,
                    sigreg=sigreg,
                    lambd=lambd)
-    predictor = VisionTransformerPredictor(next(encoder.parameters()).device)
+    predictor = VisionTransformerPredictor(
+            next(encoder.parameters()).device,
+            n_layers=predictor_n_layers,
+            n_heads=predictor_n_heads,
+            embed_dim=predictor_embed_dim,
+    )
     
     return encoder, predictor, loss
 
 def sigreg_loss(x, pred, y, sigreg, lambd):
     loss_dict = {}
-    loss_sigreg = sigreg(x.permute(1, 0, 2))
-    loss_repr = F.mse_loss(pred, y)
-    loss_dict["loss_repr"] = loss_repr
-    loss_dict["loss_sigreg"] = loss_sigreg*lambd
-    loss_dict["loss"] = loss_repr + loss_sigreg*lambd
+    sigreg_loss_x = sigreg(x.permute(1, 0, 2))
+    sigreg_loss_y = sigreg(y.permute(1, 0, 2))
+    repr_loss= F.mse_loss(pred, y)
+    loss_dict["repr_loss"] = repr_loss
+    loss_dict["sigreg_loss_x"] = sigreg_loss_x
+    loss_dict["sigreg_loss_y"] = sigreg_loss_y
+    loss_dict["loss"] = repr_loss + ((sigreg_loss_x + sigreg_loss_y)*lambd)
 
     return loss_dict
 

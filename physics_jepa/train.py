@@ -16,7 +16,7 @@ import datetime
 import gc
 
 from .data import get_train_dataloader_from_cfg, get_val_dataloader_from_cfg, get_dataset_metadata
-from .model import get_model_and_loss_cnn, get_autoencoder, get_model_and_loss_vit_tiny
+from .model import get_model_and_loss_cnn, get_autoencoder, get_model_and_loss_vit
 from .utils.model_utils import CosineLRScheduler, SIGReg
 from .utils.data_utils import mae
 from .utils.hydra import compose
@@ -126,7 +126,7 @@ class Trainer:
             epochs = tqdm(range(self.train_cfg.num_epochs))
         else:
             epochs = range(self.train_cfg.num_epochs)
-
+       
         for epoch in epochs:
             if self.train_cfg.get("not_from_embeddings", False): # compute embeddings at each epoch
                 model_components[0].eval()
@@ -306,10 +306,15 @@ class Trainer:
 
             model_components = [encoder, predictor]
 
-        elif self.cfg.model.objective == 'vit_tiny_jepa':
-            encoder, predictor, loss_fn = get_model_and_loss_vit_tiny(
-                self.cfg.model.dims,
+        elif self.cfg.model.objective == 'vit_jepa':
+            encoder, predictor, loss_fn = get_model_and_loss_vit(
                 SIGReg().to("cuda" if torch.cuda.is_available() else "cpu"),
+                self.cfg.model.n_layers,
+                self.cfg.model.n_heads,
+                self.cfg.predictor.n_layers,
+                self.cfg.predictor.n_heads,
+                encoder_embed_dim=self.cfg.model.embed_dim,
+                predictor_embed_dim=self.cfg.predictor.embed_dim,
             )
 
             if 'encoder_path' in self.train_cfg and self.train_cfg.encoder_path is not None:

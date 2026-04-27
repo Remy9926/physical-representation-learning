@@ -36,7 +36,7 @@ if __name__ == "__main__":
     # cfg.train.encoder_path = args.encoder_path
     # cfg.train.predictor_path = args.predictor_path
     
-    cfg.model.objective = "vit_tiny_jepa"
+    cfg.model.objective = "vit_jepa"
 
     print(OmegaConf.to_yaml(cfg, resolve=True))
 

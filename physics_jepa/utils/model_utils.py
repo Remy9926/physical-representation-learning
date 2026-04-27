@@ -261,23 +261,25 @@ class ConvEncoderViTTiny(nn.Module):
 
 class VisionTransformer(nn.Module):
     def __init__(self,
-                 in_channels=11,
-                 out_channels=192,
+                 in_chans=11,
+                 embed_dim=192,
                  n_layers=12,
-                 num_heads=3,
+                 n_heads=3,
                  patch_size=(4, 16, 16),
                  seq_len=784,
                  dropout=0.0,
                  scale_factor=4):
         super().__init__()
-        self.embed_dim = out_channels
+        self.in_chans = in_chans
+        self.embed_dim = embed_dim
         self.seq_len = seq_len
         self.n_layers = n_layers
         self.dropout = dropout
         self.scale_factor = scale_factor
+        self.n_heads = n_heads
         self.pos_embeddings = nn.Parameter(torch.zeros((self.seq_len, self.embed_dim)))
         torch.nn.init.trunc_normal_(self.pos_embeddings)
-        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=patch_size, stride=patch_size)
+        self.conv = nn.Conv3d(self.in_chans, self.embed_dim, kernel_size=patch_size, stride=patch_size)
         self.attention = nn.ModuleList()
         self.layer_norm_1 = nn.ModuleList()
         self.layer_norm_2 = nn.ModuleList()
@@ -285,7 +287,7 @@ class VisionTransformer(nn.Module):
         self.dropout_layer = nn.Dropout(self.dropout)
 
         for i in range(n_layers):
-            self.attention.append(nn.MultiheadAttention(self.embed_dim, num_heads, batch_first=True))
+            self.attention.append(nn.MultiheadAttention(self.embed_dim, self.n_heads, batch_first=True))
             self.layer_norm_1.append(LayerNorm(self.embed_dim))
             self.layer_norm_2.append(LayerNorm(self.embed_dim))
             self.mlp.append(
@@ -309,7 +311,7 @@ class VisionTransformer(nn.Module):
         for i in range(self.n_layers):
             res = x
             x = self.layer_norm_1[i](x)
-            x, _ = self.attention[i](x, x, x, need_weights=False)
+            x, _ = self.attention[i](x, x, x, need_weights=False, attn_mask=nn.Transformer.generate_square_subsequent_mask(self.seq_len), is_causal=True)
             x = self.dropout_layer(x) + res
             res = x
             x = self.layer_norm_2[i](x)
@@ -368,7 +370,7 @@ class VisionTransformerPredictor(nn.Module):
         for i in range(self.n_layers):
             res = x
             x = self.layer_norm_1[i](x)
-            x, _ = self.attention[i](x, x, x, need_weights=False)
+            x, _ = self.attention[i](x, x, x, need_weights=False, attn_mask=nn.Transformer.generate_square_subsequent_mask(self.seq_len), is_causal=True)
             x = self.dropout_layer(x) + res
             res = x
             x = self.layer_norm_2[i](x)
