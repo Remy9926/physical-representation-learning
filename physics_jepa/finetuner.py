@@ -831,7 +831,6 @@ class JepaViTFinetuner(BaseFinetuner):
             dist.destroy_process_group()
     
     def pred_fn(self, batch, model_components, loss_fn):
-        # TODO do i need to modify the bach["embeddings"]?
         if self.cfg.ft.get("not_from_embeddings", False):
             ctx = self._model_inference(
                 batch["context"].to(self.rank), model_components[0]

@@ -44,6 +44,7 @@ train:
 
 ft:
   task: "regression"
+  not_from_embeddings: true
   num_epochs: 10
   use_attentive_pooling: false
   head_type: "linear"
