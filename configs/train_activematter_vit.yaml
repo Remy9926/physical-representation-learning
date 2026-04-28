@@ -20,6 +20,7 @@ predictor:
   seq_len: 784
   n_layers: 6
   n_heads: 16
+  lambd: 0.1
   num_res_blocks: [3, 3, 9, 3]
 
 train:

@@ -748,17 +748,14 @@ class JepaViTFinetuner(BaseFinetuner):
         return head
 
     def _model_inference(self, ctx, encoder):
-        # TODO need to modify inference for classification/where is this called?
         with torch.no_grad():
             enc_ctx = encoder(ctx)
-            if self.cfg.ft.get("use_attentive_pooling", False):
-                # reshape to (batch_size, num_tokens, embed_dim)
-                enc_ctx = rearrange(enc_ctx, "b c h w -> b (h w) c")
-            # Check for NaN values in the encoded context
             if torch.isnan(enc_ctx).any():
                 raise ValueError(
                     f"NaN values detected in encoded context. Shape: {enc_ctx.shape}, NaN count: {torch.isnan(enc_ctx).sum()}"
                 )
+            # take average of all tokens as representation vector
+            enc_ctx = enc_ctx.mean(dim=1)
         return enc_ctx
 
     def train(self):
@@ -832,6 +829,56 @@ class JepaViTFinetuner(BaseFinetuner):
 
         if self.world_size > 1:
             dist.destroy_process_group()
+    
+    def pred_fn(self, batch, model_components, loss_fn):
+        if self.cfg.ft.get("not_from_embeddings", False):
+            ctx = self._model_inference(
+                batch["context"].to(self.rank), model_components[0]
+            )
+            head = model_components[1]
+            labels = normalize_labels(
+                batch[self.label_name], stats=self.label_stats
+            ).to(self.rank)
+        else:
+            ctx = batch["embeddings"].to(self.rank)
+            head = model_components[0]
+            labels = batch[
+                "label"
+            ].to(
+                self.rank
+            )  # don't normalize here since it's already done when saving embeddings, embeddings save as 'label'
+
+        pred = head(ctx)
+
+        # Check for NaN values in context and predictions
+        if torch.isnan(ctx).any():
+            print(
+                f"WARNING: NaN detected in context tensor: {torch.isnan(ctx).sum()} NaN values out of {ctx.numel()} total"
+            )
+
+        if torch.isnan(pred).any():
+            print(
+                f"WARNING: NaN detected in predictions: {torch.isnan(pred).sum()} NaN values out of {pred.numel()} total"
+            )
+
+        loss_dict = {"loss": loss_fn(pred, labels)}
+        if "classification" in self.cfg.ft.task:
+            loss_dict["acc"] = accuracy(pred.detach(), labels)
+
+            # Convert predictions to class predictions
+            if self.cfg.ft.task == "binary_classification":
+                pred_classes = (torch.sigmoid(pred.detach()) > 0.5).cpu().numpy()
+            else:  # multiclass classification
+                pred_classes = torch.argmax(pred.detach(), dim=1).cpu().numpy()
+            true_classes = labels.cpu().numpy()
+
+            # Calculate macro-F1 score
+            macro_f1 = f1_score(
+                true_classes, pred_classes, average="macro", zero_division=0
+            )
+            loss_dict["macro_f1"] = torch.tensor(macro_f1)
+
+        return pred, loss_dict
 
 
 # VideoMAE Finetuner
