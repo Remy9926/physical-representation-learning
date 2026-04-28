@@ -831,6 +831,7 @@ class JepaViTFinetuner(BaseFinetuner):
             dist.destroy_process_group()
     
     def pred_fn(self, batch, model_components, loss_fn):
+        # TODO do i need to modify the bach["embeddings"]?
         if self.cfg.ft.get("not_from_embeddings", False):
             ctx = self._model_inference(
                 batch["context"].to(self.rank), model_components[0]
@@ -862,23 +863,16 @@ class JepaViTFinetuner(BaseFinetuner):
             )
 
         loss_dict = {"loss": loss_fn(pred, labels)}
-        if "classification" in self.cfg.ft.task:
-            loss_dict["acc"] = accuracy(pred.detach(), labels)
-
-            # Convert predictions to class predictions
-            if self.cfg.ft.task == "binary_classification":
-                pred_classes = (torch.sigmoid(pred.detach()) > 0.5).cpu().numpy()
-            else:  # multiclass classification
-                pred_classes = torch.argmax(pred.detach(), dim=1).cpu().numpy()
-            true_classes = labels.cpu().numpy()
-
-            # Calculate macro-F1 score
-            macro_f1 = f1_score(
-                true_classes, pred_classes, average="macro", zero_division=0
-            )
-            loss_dict["macro_f1"] = torch.tensor(macro_f1)
 
         return pred, loss_dict
+
+    def inference_step(self, batch, encoder):
+        ctx = batch["context"].to(self.rank)
+        labels = normalize_labels(batch[self.label_name], stats=self.label_stats).to(
+            self.rank
+        )
+        enc_ctx = self._model_inference(ctx, encoder)
+        return enc_ctx, labels
 
 
 # VideoMAE Finetuner
