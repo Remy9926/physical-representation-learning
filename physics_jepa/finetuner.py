@@ -30,7 +30,7 @@ from .data import (
 )
 from .model import get_model_and_loss_cnn, get_autoencoder, get_model_and_loss_vit
 from .utils.data_utils import normalize_labels
-from .utils.model_utils import RegressionHead, RegressionMLP, SIGReg
+from .utils.model_utils import RegressionHead, RegressionMLP, KNNHead
 from .utils.train_utils import accuracy
 from .train import Trainer
 from .videomae import (
@@ -738,12 +738,9 @@ class JepaViTFinetuner(BaseFinetuner):
                 )
             else:
                 #TODO implement knn here
-                head = RegressionHead(
+                head = KNNHead(
                     in_dim=embed_dim,
-                    out_dim=self.cfg.ft.num_classes,
-                    flatten_first=True,
-                    add_dropout=self.cfg.ft.get("add_dropout", False),
-                    dropout_rate=self.cfg.ft.get("dropout_rate", 0.8),
+                    out_dim=len(metadata.constant_scalar_names),
                 )
         return head
 

@@ -489,6 +489,15 @@ class RegressionHead(nn.Module):
             x = self.dropout(x)
         return self.fc(x)
 
+class KNNHead(nn.Module):
+    def __init__(self, in_dim, out_dim, flatten_first=False):
+        super().__init__()
+        pass
+    
+    def forward(self, x):
+        #TODO define me
+        pass
+
 class RegressionMLP(nn.Module):
     def __init__(self,
                  in_dim,
