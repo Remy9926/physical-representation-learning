@@ -727,7 +727,7 @@ class JepaViTFinetuner(BaseFinetuner):
 
     def create_head(self, metadata):
         # TODO create KNN and Linear Head
-        embed_dim = self.cfg.embed_dim
+        embed_dim = self.cfg.model.embed_dim
 
         if self.cfg.ft.task == "regression":
             if self.cfg.ft.head_type == "linear":
