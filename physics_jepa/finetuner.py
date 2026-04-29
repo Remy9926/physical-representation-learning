@@ -819,6 +819,7 @@ class JepaViTFinetuner(BaseFinetuner):
         if loss_fn is None:
             raise ValueError(f"loss function not found for task {self.cfg.ft.task}")
 
+        # TODO training loop only if using linear probe, else knn just needs 1 forward pass
         self.training_loop(model_components, loss_fn, optimizer, run_name)
 
         # Clean up HDF5 file handles if they exist
@@ -863,11 +864,12 @@ class JepaViTFinetuner(BaseFinetuner):
         return pred, loss_dict
 
     def inference_step(self, batch, encoder):
-        ctx = batch["context"].to(self.rank)
-        labels = normalize_labels(batch[self.label_name], stats=self.label_stats).to(
-            self.rank
-        )
-        enc_ctx = self._model_inference(ctx, encoder)
+        with torch.no_grad():
+            ctx = batch["context"].to(self.rank)
+            labels = normalize_labels(batch[self.label_name], stats=self.label_stats).to(
+                self.rank
+            )
+            enc_ctx = self._model_inference(ctx, encoder)
         return enc_ctx, labels
 
 

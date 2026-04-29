@@ -13,3 +13,4 @@ figures/
 *.ipynb
 .claude
 data
+checkpoints
