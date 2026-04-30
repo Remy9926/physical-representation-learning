@@ -105,7 +105,7 @@ if __name__ == "__main__":
         head.load_state_dict(state_dict)
         head = head.to(device)
         head.eval()
-    else:
+    elif cfg.ft.head_type == "knn":
         print("Setting up KNN probe")
         print(f"loading embeddings from {trained_predictor_path}", flush=True)
 
@@ -146,6 +146,9 @@ if __name__ == "__main__":
         )
 
         train_file.close()
+    else:
+        print("Invalid probe type specified!\nExiting...")
+        exit(1)
 
     test_data_loader = get_test_dataloader(
             cfg.dataset.name,
