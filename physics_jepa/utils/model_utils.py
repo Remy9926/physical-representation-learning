@@ -490,13 +490,33 @@ class RegressionHead(nn.Module):
         return self.fc(x)
 
 class KNNHead(nn.Module):
-    def __init__(self, in_dim, out_dim, flatten_first=False):
+    def __init__(self, embeddings, labels, device, k=7, flatten_first=False):
         super().__init__()
-        pass
-    
+        self.device = device
+        if isinstance(embeddings, np.ndarray):
+            self.embeddings = torch.from_numpy(embeddings)
+        else:
+            self.embeddings = embeddings
+        self.embeddings.to(self.device)
+        
+        if isinstance(labels, np.ndarray):
+            self.labels = torch.from_numpy(labels)
+        else:
+            self.labels = labels
+        self.labels.to(self.device)
+
+        self.k = k
+        self.flatten_first = flatten_first
+
     def forward(self, x):
-        #TODO define me
-        pass
+        if self.flatten_first:
+            x = x.flatten(1, -1)
+
+        dists = torch.cdist(x, self.embeddings).to(self.device)
+        _, idxs = torch.topk(dists, dim=1, k=self.k, largest=False)
+        preds = self.labels[idxs].mean(dim=1)
+
+        return preds
 
 class RegressionMLP(nn.Module):
     def __init__(self,

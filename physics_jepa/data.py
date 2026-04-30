@@ -841,3 +841,72 @@ def get_val_dataloader(
         prefetch_factor=prefetch_factor,
     )
     return val_loader
+
+def get_test_dataloader(
+        dataset_name,
+        num_frames,
+        num_examples,
+        batch_size, 
+        task=None,
+        rank=0, 
+        world_size=1, 
+        seed=42, 
+        shuffle=False,
+        persistent_workers=True, 
+        pin_memory=True, 
+        prefetch_factor=8,
+        include_labels=False,
+        predict_n_steps=False,
+        n_steps=1,
+        fields=None,
+        balance_classes=False,
+        resolution=None,
+        offset=None,
+        noise_std=0.0,
+    ):
+    dataset = get_dataset(dataset_name, 
+                          num_frames, 
+                          split="test", 
+                          include_labels=include_labels, 
+                          num_examples=num_examples, 
+                          predict_n_steps=predict_n_steps, 
+                          task=task,
+                          n_steps=n_steps,
+                          fields=fields,
+                          balance_classes=balance_classes,
+                          resolution=resolution,
+                          offset=offset,
+                          noise_std=noise_std,
+                        )
+    if world_size == 1:
+        sampler = None
+    else:
+        sampler = DistributedSampler(
+            dataset=dataset,
+            drop_last=True,
+            shuffle=shuffle,
+            rank=rank,
+            num_replicas=world_size,
+            seed=seed,
+        )
+    
+    def worker_init_fn(worker_id: int):
+        worker_seed = torch.initial_seed() % 2**32
+        worker_seed = worker_seed + rank if world_size > 1 else worker_seed
+
+        random.seed(worker_seed)
+        np.random.seed(worker_seed)
+        torch.manual_seed(worker_seed)
+
+    test_loader = DataLoader(
+        dataset=dataset,
+        sampler=sampler,
+        batch_size=batch_size,
+        shuffle=shuffle if sampler is None else False,
+        num_workers=4,
+        worker_init_fn=worker_init_fn,
+        persistent_workers=persistent_workers,
+        pin_memory=pin_memory,
+        prefetch_factor=prefetch_factor,
+    )
+    return test_loader
