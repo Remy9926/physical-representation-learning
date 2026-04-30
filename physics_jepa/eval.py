@@ -47,6 +47,7 @@ if __name__ == "__main__":
     parser.add_argument("overrides", nargs="*")
     parser.add_argument("--trained_model_path", type=str, default=None)
     parser.add_argument("--trained_predictor_path", type=str, default=None)
+    parser.add_argument("head_type", type=str, default="linear")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--rank", type=int, default=0)
     parser.add_argument("--k", type=int, default=7)
@@ -90,8 +91,10 @@ if __name__ == "__main__":
     encoder.load_state_dict(state_dict)
     encoder = encoder.to(device)
     encoder.eval()
+    cfg.ft.head_type = args.head_type
 
     if cfg.ft.head_type == "linear":
+        print("Setting up linear regression probe")
         head = RegressionHead(
             in_dim=cfg.model.embed_dim,
             out_dim=2,
@@ -103,6 +106,7 @@ if __name__ == "__main__":
         head = head.to(device)
         head.eval()
     else:
+        print("Setting up KNN probe")
         print(f"loading embeddings from {trained_predictor_path}", flush=True)
 
         # Add retry mechanism for file opening to handle temporary locking issues

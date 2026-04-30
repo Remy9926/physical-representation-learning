@@ -737,11 +737,7 @@ class JepaViTFinetuner(BaseFinetuner):
                     flatten_first=True,
                 )
             else:
-                #TODO implement knn here
-                head = KNNHead(
-                    in_dim=embed_dim,
-                    out_dim=len(metadata.constant_scalar_names),
-                )
+                head = torch.rand(1)
         return head
 
     def _model_inference(self, ctx, encoder):
@@ -756,7 +752,6 @@ class JepaViTFinetuner(BaseFinetuner):
         return enc_ctx
 
     def train(self):
-        # TODO need to modify training loop for finetuning the head?
         run_name = self.cfg.ft.get(
             "run_name",
             f"{self.cfg.dataset.name}-{self.cfg.dataset.num_frames}frames-{self.cfg.model.objective + '-FT' if not self.cfg.ft.get('not_from_embeddings', False) else 'supervised'}-{self.cfg.ft.task}{f'-randominit' if self.trained_model_path is None else ''}-{self.train_cfg.num_epochs}epochs",
@@ -820,7 +815,11 @@ class JepaViTFinetuner(BaseFinetuner):
             raise ValueError(f"loss function not found for task {self.cfg.ft.task}")
 
         # TODO training loop only if using linear probe, else knn just needs 1 forward pass
-        self.training_loop(model_components, loss_fn, optimizer, run_name)
+        if self.cfg.ft.head_type == "linear":
+            self.training_loop(model_components, loss_fn, optimizer, run_name)
+        else:
+            # it's knn if not linear
+            pass
 
         # Clean up HDF5 file handles if they exist
         self.cleanup_embedding_files()
