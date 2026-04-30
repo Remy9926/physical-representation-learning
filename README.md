@@ -1,4 +1,4 @@
-This is the official code repository for the paper [Representation Learning for Spatiotemporal Physical Systems](https://arxiv.org/abs/2603.13227).
+This is the a fork of the code repository for the paper [Representation Learning for Spatiotemporal Physical Systems](https://arxiv.org/abs/2603.13227).
 
 ## Installation
 
@@ -16,6 +16,46 @@ pip install -e .
 ### Environment setup
 
 Edit `scripts/env_setup.sh` to activate your virtual environment and set the path to [The Well](https://github.com/PolymathicAI/the_well) datasets. This file is sourced automatically by all scripts. The `THE_WELL_DATA_DIR` variable is required by all training and finetuning scripts that use The Well data.
+
+## Our Contribution
+
+### 1. Vision Transformer JEPA pretraining
+
+Pretrain a ViT JEPA encoder on a physics dataset using the script in `scripts/<dataset>/`:
+
+| Dataset | Script |
+|---|---|
+| Active matter | `scripts/active_matter/run_train_vit_jepa.sh` |
+
+Config fields `out_path` and `cache_path` control where checkpoints and dataset caches are written. Key training hyperparameters (learning rate, number of epochs, noise level, etc.) are set in the `train:` block of the corresponding config. Config fields can be overridden from the command line by passing `key=value` arguments to the script, e.g.:
+
+```bash
+scripts/active_matter/run_train_vit_jepa.sh train.num_epochs=10 train.lr=5e-4
+```
+
+### 2. Finetuning a probe
+
+Finetune a Linear or KNN probe using the script in `scripts/<dataset>/`:
+
+| Dataset | Script |
+|---|---|
+| Active matter | `scripts/active_matter/run_finetune_vit_jepa.sh` |
+
+```bash
+scripts/active_matter/run_finetune_vit_jepa.sh <PRETRAINED_MODEL PATH>
+```
+
+### 3. Evaluating your probe
+
+Evaluate the finetuned probe using the script in `scripts/<dataset>/`:
+
+| Dataset | Script |
+|---|---|
+| Active matter | `scripts/active_matter/run_eval_vit_jepa.sh` |
+
+```bash
+scripts/active_matter/run_eval_vit_jepa.sh <PRETRAINED_MODEL_PATH> <PRETRAINED_MODEL_PATH> <[linear/knn]>
+```
 
 ## Training
 
