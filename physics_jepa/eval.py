@@ -28,10 +28,9 @@ from .data import (
     get_dataset_metadata,
     get_train_dataloader,
     get_val_dataloader,
-    get_test_dataloader,
+    get_test_dataloader
 )
 from .model import get_model_and_loss_cnn, get_autoencoder, get_model_and_loss_vit
-from .utils.data_utils import normalize_labels
 from .utils.model_utils import RegressionHead, RegressionMLP, KNNHead
 import argparse
 from pathlib import Path
@@ -47,7 +46,7 @@ if __name__ == "__main__":
     parser.add_argument("overrides", nargs="*")
     parser.add_argument("--trained_model_path", type=str, default=None)
     parser.add_argument("--trained_predictor_path", type=str, default=None)
-    parser.add_argument("head_type", type=str, default="linear")
+    parser.add_argument("--head_type", type=str, default="linear")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--rank", type=int, default=0)
     parser.add_argument("--k", type=int, default=7)
@@ -68,7 +67,7 @@ if __name__ == "__main__":
     loss_fn = nn.MSELoss()
     label_name = "physical_params"
 
-    if not trained_predictor_path.exists():
+    if not trained_model_path.exists():
         print("Trained model path does not exist!\nExiting...")
         exit(1)
     if not trained_predictor_path.exists():
@@ -92,6 +91,10 @@ if __name__ == "__main__":
     encoder = encoder.to(device)
     encoder.eval()
     cfg.ft.head_type = args.head_type
+
+    wandb.init(project="physics-jepa",
+                name="eval model",
+                config=OmegaConf.to_container(cfg))
 
     if cfg.ft.head_type == "linear":
         print("Setting up linear regression probe")
@@ -154,21 +157,36 @@ if __name__ == "__main__":
             cfg.dataset.name,
             cfg.dataset.num_frames,
             cfg.dataset.get("num_examples", None),
-            cfg.ft.batch_size,)
+            cfg.ft.batch_size,
+            resolution=224)
     
     if args.rank == 0:
         distprint(f"Fetched test dataloader with {len(test_data_loader.dataset)} samples", local_rank=args.rank)
     
     loss = 0
-    import ipdb
-    ipdb.set_trace()
+    STATS = {
+                "means": [-3.0, 9.0],  # alpha, zeta
+                "stds": [1.41, 5.16],
+        }
+
+    def normalize_labels(x, stats={}):
+        means = torch.tensor(stats['means']).to(device)
+        stds = torch.tensor(stats['stds']).to(device)
+        return (x - means) / stds
+
     for i, batch in tqdm(enumerate(test_data_loader), desc="Evaluating on test set", total=len(test_data_loader)):
         ctx = batch["context"].to(device)
         labels = batch[label_name].to(device)
-        preds = head(encoder(ctx))
+        labels = normalize_labels(labels, stats=STATS)
+        preds = head(encoder(ctx).mean(dim=1))
 
         curr_loss = loss_fn(preds, labels)
         loss += curr_loss.item()
     
+    loss /= len(test_data_loader.dataset)
+    
+    wandb.log({"mse_loss": loss})
     print(f"Final MSE Loss on test set: {loss}", flush=True)
+    print(f"There are {len(test_data_loader.dataset)} test points")
+
 

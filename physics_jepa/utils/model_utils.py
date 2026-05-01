@@ -497,13 +497,13 @@ class KNNHead(nn.Module):
             self.embeddings = torch.from_numpy(embeddings)
         else:
             self.embeddings = embeddings
-        self.embeddings.to(self.device)
+        self.embeddings = self.embeddings.to(self.device)
         
         if isinstance(labels, np.ndarray):
             self.labels = torch.from_numpy(labels)
         else:
             self.labels = labels
-        self.labels.to(self.device)
+        self.labels = self.labels.to(self.device)
 
         self.k = k
         self.flatten_first = flatten_first

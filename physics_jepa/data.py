@@ -842,11 +842,12 @@ def get_val_dataloader(
     )
     return val_loader
 
+
 def get_test_dataloader(
         dataset_name,
         num_frames,
         num_examples,
-        batch_size, 
+        batch_size,
         task=None,
         rank=0, 
         world_size=1, 
