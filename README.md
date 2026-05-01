@@ -57,6 +57,9 @@ Evaluate the finetuned probe using the script in `scripts/<dataset>/`:
 scripts/active_matter/run_eval_vit_jepa.sh <PRETRAINED_MODEL_PATH> <PRETRAINED_PREDICTOR_PATH> <[linear/knn]> <CONFIG_PATH>
 ```
 
+If linear, <PRETRAINED_PREDICTOR_PATH> is the path to the linear regression head
+If knn, <PRETRAINED_PREDICTOR_PATH> is the path to the train embeddings (.h5 file)
+
 ## Training
 
 ### 1. JEPA pretraining

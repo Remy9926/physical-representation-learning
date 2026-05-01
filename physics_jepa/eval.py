@@ -184,7 +184,7 @@ if __name__ == "__main__":
         loss += curr_loss.item()
     
     loss /= len(test_data_loader.dataset)
-    
+
     wandb.log({"mse_loss": loss})
     print(f"Final MSE Loss on test set: {loss}", flush=True)
     print(f"There are {len(test_data_loader.dataset)} test points")
