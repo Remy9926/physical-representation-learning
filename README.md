@@ -54,7 +54,7 @@ Evaluate the finetuned probe using the script in `scripts/<dataset>/`:
 | Active matter | `scripts/active_matter/run_eval_vit_jepa.sh` |
 
 ```bash
-scripts/active_matter/run_eval_vit_jepa.sh <PRETRAINED_MODEL_PATH> <PRETRAINED_PREDICTOR_PATH> <[linear/knn]>
+scripts/active_matter/run_eval_vit_jepa.sh <PRETRAINED_MODEL_PATH> <PRETRAINED_PREDICTOR_PATH> <[linear/knn]> <CONFIG_PATH>
 ```
 
 ## Training
