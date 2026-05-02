@@ -153,12 +153,33 @@ if __name__ == "__main__":
         print("Invalid probe type specified!\nExiting...")
         exit(1)
 
-    test_data_loader = get_test_dataloader(
-            cfg.dataset.name,
-            cfg.dataset.num_frames,
-            cfg.dataset.get("num_examples", None),
-            cfg.ft.batch_size,
-            resolution=224)
+    def get_dataloader(cfg, split):
+        common_kwargs = dict(
+            dataset_name=cfg.dataset.name,
+            num_frames=cfg.dataset.num_frames,
+            num_examples=cfg.dataset.get("num_examples", None),
+            batch_size=cfg.ft.batch_size,
+            shuffle=False,
+            include_labels=True,
+            predict_n_steps=False,
+            rank=0,
+            world_size=1,
+            task=cfg.ft.task,
+            fields=cfg.ft.get("fields", None),
+            balance_classes=False,
+            resolution=224,
+            offset=cfg.dataset.get("offset", None),
+            noise_std=cfg.ft.get("noise_std", 0.0),
+        )
+
+        if split == "test":
+            return get_test_dataloader(
+                **common_kwargs,
+            )
+
+        raise ValueError(f"Unknown split: {split}")
+    
+    test_data_loader = get_dataloader(cfg, "test")
     
     if args.rank == 0:
         distprint(f"Fetched test dataloader with {len(test_data_loader.dataset)} samples", local_rank=args.rank)
